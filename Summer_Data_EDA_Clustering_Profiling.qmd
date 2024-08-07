@@ -1,0 +1,1355 @@
+---
+title: "Summer_Data"
+format: html
+editor: visual
+---
+
+```{r}
+#load libraries 
+
+library(tidyverse)
+library(kableExtra)
+library(skimr)
+library(lubridate)
+library(hrbrthemes)
+library(tidytext)
+library(ggExtra)
+library(patchwork)
+library(tidytext)
+library(corrplot)
+library(caret)
+library(MASS)
+library(car)
+library(widyr)
+library(igraph)
+library(ggraph)
+library(factoextra)
+
+
+# Format setting
+
+options(scipen = 999)
+```
+
+#1. We will start with importing the raw data and analyzing what each column of the data says. The raw datafile we use is Women Fashion Trend Dataset from Kaggle - <https://www.kaggle.com/datasets/durgeshrao9993/dataset> . We will name the raw datafile as data.
+
+#Women Fashion Dataset \# The Women Fashion Trend Dataset is a comprehensive collection of fashion-related information and trends specifically focused on women's fashion. It serves as a valuable resource for fashion analysts, designers, retailers, and researchers interested in understanding and predicting the latest trends in women's fashion.# \# This dataset encompasses a wide range of fashion elements, including clothing, accessories, footwear, and beauty products. It covers various categories such as casual wear, formal wear, athleisure, swimwear, lingerie, and more. Each category includes detailed information about the latest designs, styles, colors, p
+
+atterns, and materials that are popular within the given timeframe.#In this analysis we will be focusing on understanding the given dataset, idenfitying the attributes which correspond to high unit sale, top selling products, top selling size, top selling colors, top selling patterns, keywords which result in high sell through rate (items/units sold), key word groupings, impact of discount on units sold, create clusters based on ratings, patterns, colors to idenitfy the themes of focus for fashion companies and finally we will predict the latest trends in fashion and see how the historical data help in forecasting the outlook of these trends
+
+```{r}
+data <- read.csv("summer-products.csv")
+```
+
+#2.Data Description - Now we will create a table which has a detailed explaination of each column in the data set. There are
+
+```{r}
+
+Variable <- names(data)
+
+Description <- c("Title for localized for european countries. May be the same as title_orig if the seller did not offer a translation.", 
+                 "Original english title of the product.",
+                 "Price you would pay to get the product.",
+                 "Reference price for similar articles on the market, or in other stores/places. Used by the seller to indicate a regular value or the price before discount.",
+                 "Currency of the prices.",
+                 "Number of units sold. Lower bound approximation by steps.",
+                 "Whether the seller paid to boost his product within the platform (highlighting, better placement or whatever).",
+                 "Mean product rating.",
+                 "Total number of ratings of the product.",
+                 "Number of 5-star ratings.",
+                 "Number of 4-star ratings.",
+                 "Number of 3-star ratings.",
+                 "Number of 2-star ratings.",                 
+                 "Number of 1-star ratings.",
+                 "Number of badges the product or the seller have.",
+                 "A badge that denotes the product is a local product. Conditions may vary (being produced locally, or something else). Some people may prefer buying local products rather than. 1 means Yes, has the badge.",
+                 "Badge awarded when many buyers consistently gave good evaluations. 1 means Yes, has the badge.",
+                 "Badge awarded when this product's order is consistently shipped rapidly.",
+                 "tags set by the seller.",
+                 "Product's main color.",
+                 "One of the available size variation for this product.",
+                 "Inventory the seller has. Max allowed quantity is 50.",
+                 "Shipping_option_name.",
+                 "Shipping price.",
+                 "Whether the shipping is express or not. 1 for True.",
+                 "Number of countries this product is shipped to. Sellers may choose to limit where they ship a product to.",
+                 "Total inventory for all the product's variations (size/color variations for instance).",
+                 "Whether there was an urgency banner with an urgency.",
+                 "A text banner that appear over some products in the search results.",
+                 "Origin_country.",
+                 "Merchant's displayed name (show in the UI as the seller's shop name).",
+                 "Merchant's canonical name. A name not shown publicly. Used by the website under the hood as a canonical name. Easier to process since all lowercase without white space.",
+                 "The subtitle text as shown on a seller's info section to the user. (raw, not preprocessed). The website shows this to the user to give an overview of the seller's stats to the user. Mostly consists of `% <positive_feedbacks> (<rating_count> reviews)` written in french.",
+                 "Number of ratings of this seller.",
+                 "Merchant's rating.",
+                 "Merchant unique id.",
+                 "Convenience boolean that says whether there is a `merchant_profile_picture` url.",
+                 "Custom profile picture of the seller (if the seller has one). Empty otherwise.",
+                 "Url to the product page. You may need to login to access it.",
+                 "Product_picture.",
+                 "Product identifier. You can use this key to remove duplicate entries if you're not interested in studying them.",
+                 "The search term used in the search bar of the website to get these search results.",
+                 "Meta: for info only.")
+
+
+data.frame(Variable, Description) %>% 
+  kbl(caption = "Adapated from the Kaggle Website.") %>% 
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+```
+
+#3 Data Exploration
+
+The clothing dataset contains 1,573 rows - observations and 43 columns - variables. There are 19 character varaibles and 24 numeric variables. From the below summary table we see various attributes of the variables from number of missing values in each column, to min max value of each column.From the data we observe thata. amongst categorical variables - urgency_text and merchant_profile_picture have the highest number of empty values.b. amongst numeric variables - rating_five_count, rating_four_count, rating_three_count, rating_two_count and rating_one_count have 45 missing values. And has_urgency_banner has 1100 missing values.
+
+```{r}
+
+skim_without_charts(data)
+```
+
+#3 To see the columns of the dataset and display some portion of the data with respect to each attribute that can fit on a single line we can use glimpse from dplyr package
+
+```{r}
+
+glimpse(data)
+```
+
+#4 Removing variables which are not needed. On further looking closely at the data columns and their definitions we identified the below columns can be removed for reasons listed again each variable\
+title: Which is Title for localized for european countries. It is the same as title_orig which is translated in english. Hence can be dropped; currency_buyer: Since the data is from Europe the only currency available is “EUR” which is not very relevant for insights ; merchant_profile_picture: Of the 1,573 observations available there are 1347 missing information - 86% data missing. Hence can be removed; has_urgency_banner: Of the 1,573 observations, there are 1100 missing values - 70% missing information. Hence can be removed; urgency_text: Of the 1,573 observations, there are 1100 missing values - 70% missing information. Hence can be removed; merchant_id: Unique id of the merchant , can be used to indentify the number of merchant listing products. But not relevant to the current analysis of identifying the fashion trends; merchant_info_subtitle : not used for analysis - can be removed; product_url: The url of the product listing is not relevant to the current analysis; product_picture: I do not need this column for this analysis; product_id: Similar to merchant_id not relevant to the current analysis; theme: The dataset is for summer theme and is the same for all the observations. Hence, not relevant to the current analysis; crawl_month - 2020-08-01 is the same for all the observations. Hence, can be dropped; origin_country - #All most all items have origin country as CN - can be dropped;
+
+```{r}
+#Theme
+c <- data %>% 
+  mutate(theme = as.factor(theme))
+
+levels(c$theme)
+```
+
+```{r}
+c <- data %>% 
+  mutate(crawl_month = ym(crawl_month))
+
+summary(c$crawl_month)
+```
+
+#5. Based on the above observation we will be dropping the below listed variables
+
+```{r}
+data2 <- data %>% 
+  dplyr::select(-title, -currency_buyer, merchant_info_subtitle,  -merchant_profile_picture, -has_urgency_banner, 
+                -urgency_text, -merchant_id, -product_url, -product_picture, -product_id, 
+                -theme, -crawl_month, -origin_country, -merchant_has_profile_picture, -merchant_info_subtitle, -merchant_title, -inventory_total)
+```
+
+#6. Let use convert the categorical data into factors to perform further analysis.
+
+```{r}
+data2 <- data2 %>% 
+  mutate(shipping_option_name = as.character(shipping_option_name),
+         shipping_option_name = case_when(shipping_option_name != "Livraison standard" ~ "Other_shipping",
+                                           TRUE ~ shipping_option_name),
+         shipping_option_name = as.factor(shipping_option_name))
+```
+
+```{r}
+ 
+data2 <- data2 %>% 
+  mutate_if(is.character, as.factor) %>% 
+  mutate(uses_ad_boosts = as.factor(uses_ad_boosts),       
+         shipping_is_express = as.factor(shipping_is_express)  # A binary data for yes or not 
+         )
+```
+
+#7. New lets clean each of the columns - numericals columns let us impute the missing values with mean. For categorical variables - lets us clean them based on what each column contains. If needed for further analysis we can do one hot encoding on the categorical variables.
+
+```{r}
+data2_numeric_updated <- data2 %>%
+  mutate_if(is.numeric, ~ if_else(is.na(.), mean(., na.rm = TRUE), .))
+
+```
+
+```{r}
+# Check for missing or empty values in all numeric columns
+missing_or_empty <- data2_numeric_updated %>%
+  filter(if_any(where(is.numeric), ~ is.na(.) | . == ""))
+
+# Print the number of rows with missing or empty values
+print(nrow(missing_or_empty))
+```
+
+```{r}
+library(dplyr); library(tidyr)
+data2_numeric_updated |>
+  select_if(is.numeric)|>
+  pivot_longer(cols = 1:19,names_to = 'numeric_predictor', values_to = 'values'  )|>
+  ggplot(aes(x = values))+
+  geom_histogram()+
+  facet_wrap(numeric_predictor~., scales = 'free')+
+  theme_bw()
+```
+
+```{r}
+library(dplyr); library(tidyr)
+data2_numeric_updated %>%
+  select_if(is.factor) %>%
+  pivot_longer(cols = everything(), names_to = 'categorical_predictor', values_to = 'values') %>%
+  ggplot(aes(x = values)) +
+  geom_bar() +
+  facet_wrap(~categorical_predictor, scales = 'free') +
+  theme_bw()
+```
+
+```{r}
+df <- data2_numeric_updated 
+```
+
+#8. There are primarily 4 columns that we need for our analysis which we need to analyze and extract form the given columns. They are color, pattern, style. We will be adding the columns in the below steps
+
+#8a. Adding product type
+
+```{r}
+
+library(dplyr)
+
+product_type_keywords <- c(
+  "crop", "cami", "kaftan", "off-shoulder", "off shoulder", "one shoulder", "blouse", 
+  "bralette", "bustier", "bra", "tie front", "sleeveless", "cape", "tube", "flare", 
+  "corset", "asymmetrical", "boxy", "cold shoulder", "wrap", "peplum", "tunic", 
+  "halter neck", "tie back", "backless", "belted", "button down", "button-down", 
+  "cowl", "tank", "v-neck", "v neck", "tee", "t-shirt", "bow", "bodysuit", 
+  "full sleeve", "sweater", "cardigan", "sweatshirt", "pullover", "high low", 
+  "high-low", "poncho", "empire", "low waist", "ruffle", "cocktail", "sundress", 
+  "shift", "body con", "babydoll", "maxi", "drop waist", "blazer", "apron", 
+  "bootcut", "boyfriend", "high rise", "straight", "baggy", "slim", "distressed", 
+  "ripped", "flared", "mom", "capri", "skinny","shorts"," pleated", "tassel", "tassle", 
+  "bikini", "swimsuit", "one piece", "one-piece", "two piece", "two-piece", "swim", 
+  "padded", "push up", "push-up", "cap","hat","visor", "fringe"
+  
+)
+```
+
+```{r}
+add_product_type <- function(df, product_type_keywords) {
+  # Combine relevant columns into a single text string for each row
+  combined_columns <- paste(df$title_orig, df$tags, sep = " ")
+  
+  # Create an empty Product Type column
+  df$product_type <- NA
+  
+  # Loop through each keyword and check if it exists in the combined columns
+  for (keyword in product_type_keywords) {
+    matching_indices <- grep(keyword, combined_columns, ignore.case = TRUE)
+    df$product_type[matching_indices] <- keyword
+  }
+  
+  # Replace NA values with "unknown"
+  df$product_type[is.na(df$product_type)] <- "unknown"
+ 
+  return(df)
+}
+```
+
+#8b. Adding style
+
+```{r}
+
+style_keywords <- c(
+  "casual","formal", "vintage", "contemporary", "modern","minnimalist","boho","bohemian",
+  "edgy","preppy","sporty","punk","glamorous","glamourous","classic","streetwear",
+  "hipster","army","military","retro","eclectic","rustic","chic", "summer","winter",
+  "fall","autumn","spring", "holiday","grunge","etheral","avant-garde","avant garde",
+  "goth","gothic","nautical","futuristic","western","industrial","romantic","coastal",
+  "art deco","mod","androgynous","athletic", "utility", "flower child", "picnic",
+  "outdoor","beach","camping", "yoga", "hiking" 
+  
+)
+
+add_style <- function(df, style_keywords) {
+  # Combine relevant columns into a single text string for each row
+  combined_columns <- paste(df$title_orig, df$tags, sep = " ")
+  
+  # Create an empty Style column
+  df$style <- NA
+  
+  # Loop through each keyword and check if it exists in the combined columns
+  for (keyword in style_keywords) {
+    matching_indices <- grep(keyword, combined_columns, ignore.case = TRUE)
+    df$style[matching_indices] <- keyword
+  }
+  
+  # Replace NA values with "unknown"
+  df$style[is.na(df$style)] <- "unknown"
+  
+  return(df)
+}
+```
+
+#8c. Adding patterns
+
+```{r}
+
+pattern_keywords <- c(
+  "printed", "pattern", "camoflage","flannel", "stripes", "stripe", "polka dot", 
+  "plaid", "tartan","paisley","floral","houndstooth","chevron", "argyle", "geometric",
+  "gingham", "animal", "toile", "herringbone", "pinstripe", "leopard", "cheetah"
+)
+add_pattern <- function(df, pattern_keywords) {
+  # Combine relevant columns into a single text string for each row
+  combined_columns <- paste(df$title_orig, df$tags, sep = " ")
+  
+  # Create an empty Pattern column
+  df$pattern <- NA
+  
+  # Loop through each keyword and check if it exists in the combined columns
+  for (keyword in pattern_keywords) {
+    matching_indices <- grep(keyword, combined_columns, ignore.case = TRUE)
+    df$pattern[matching_indices] <- keyword
+  }
+  
+  # Replace NA values with "unknown"
+  df$pattern[is.na(df$pattern)] <- "unknown"
+  
+  return(df)
+}
+```
+
+#8d. Adding materials
+
+```{r}
+
+material_keywords <- c(
+  "cotton", "linen","silk","wool","leather","denim","polyester","rayon","nylon",
+  "spandex","lycra","cashmere","velvet","chiffon","tweed","satin","flannel",
+  "hemp","fleece", "nylon", "elastic", "stretch"
+)
+add_material <- function(df, material_keywords) {
+  # Combine relevant columns into a single text string for each row
+  combined_columns <- paste(df$title_orig, df$tags, sep = " ")
+  
+  # Create an empty Material column
+  df$material <- NA
+  
+  # Loop through each keyword and check if it exists in the combined columns
+  for (keyword in material_keywords) {
+    matching_indices <- grep(keyword, combined_columns, ignore.case = TRUE)
+    df$material[matching_indices] <- keyword
+  }
+  
+  # Replace NA values with "unknown"
+  df$material[is.na(df$material)] <- "unknown"
+  
+  return(df)
+}
+```
+
+```{r}
+ df <- df %>% 
+ mutate(product_color = as.character(product_color),
+         product_colors = case_when(product_color == "white" ~ "white",
+                                   product_color == "black" ~ "black",
+                                   product_color == "gold" ~ "gold",
+                                   product_color == "rosegold" ~ "rosegold",
+                                   product_color == "darkgreen" ~ "green",
+                                   product_color == "black & blue" ~ "blue",
+                                   product_color == "violet" ~ "violet",
+                                   product_color == "offblack" ~ "black",
+                                   product_color == "lightkhaki" ~ "khaki",
+                                   product_color == "jasper" ~ "green",
+                                   product_color == "black & yellow" ~ "yellow",
+                                   product_color == "ivory" ~ "white",
+                                   product_color == "wine" ~ "red",
+                                   product_color == "white & red" ~ "red",
+                                   product_color == "navyblue & white" ~ "blue",
+                                   product_color == "prussianblue" ~ "blue",
+                                   product_color == "watermelonred" ~ "red",
+                                   product_color == "lightgrey" ~ "grey",
+                                   product_color == "whitestripe" ~ "white",
+                                   product_color == "winered & yellow" ~ "multi",
+                                   product_color == "brown & yellow" ~ "multi",
+                                   product_color == "gray & white" ~ "grey",
+                                   product_color == "navy" ~ "blue",
+                                   product_color == "lightgray" ~ "grey",
+                                   product_color == "offwhite" ~ "offwhite",
+                                   product_color == "applegreen" ~ "green",
+                                   product_color == "denimblue" ~ "blue",
+                                   product_color == "greysnakeskinprint" ~ "grey",
+                                   product_color == "Rose red" ~ "red",
+                                   product_color == "black & stripe" ~ "black",
+                                   product_color == "army" ~ "green",
+                                   product_color == "lightpurple" ~ "purple",
+                                   product_color == "nude" ~ "beige",
+                                   product_color == "pink & blue" ~ "multi",
+                                   product_color == "camel" ~ "beige",
+                                   product_color == "darkblue" ~ "blue",
+                                   product_color == "lakeblue" ~ "blue",
+                                   product_color == "brown" ~ "brown",
+                                   product_color == "coralred" ~ "red",
+                                   product_color == "lightred" ~ "red",
+                                   product_color == "wine red" ~ "red",
+                                   product_color == "navy blue" ~ "blue",
+                                   product_color == "tan" ~ "beige",
+                                   product_color == "rosered" ~ "red",
+                                   product_color == "pink & white" ~ "pink",
+                                   product_color == "claret" ~ "red",
+                                   product_color == "burgundy" ~ "red",
+                                   product_color == "skyblue" ~ "blue",
+                                   product_color == "apricot" ~ "orange",
+                                   product_color == "white & black" ~ "black",
+                                   product_color == "star" ~ "silver",
+                                   product_color == "dustypink" ~ "pink",
+                                   product_color == "orange-red" ~ "multi",
+                                   product_color == "black & white" ~ "black",
+                                   product_color == "leopard" ~ "leopard",
+                                   product_color == "light green" ~ "green",
+                                   product_color == "rose" ~ "red",
+                                   product_color == "coffee" ~ "brown",
+                                   product_color == "gray" ~ "grey",
+                                   product_color == "pink & grey" ~ "pink",
+                                   product_color == "mintgreen" ~ "green",
+                                   product_color == "lightgreen" ~ "green",
+                                   product_color == "Army green" ~ "green",
+                                   product_color == "silver" ~ "silver",
+                                   product_color == "pink & black" ~ "pink",
+                                   product_color == "lightpink" ~ "pink",
+                                   product_color == "camouflage" ~ "green",
+                                   product_color == "multicolor" ~ "multi",
+                                   product_color == "coolblack" ~ "black",
+                                   product_color == "lightyellow" ~ "yellow",
+                                   product_color == "orange & camouflage" ~ "orange",
+                                   product_color == "fluorescentgreen" ~ "green",
+                                   product_color == "floral" ~ "floral",
+                                   product_color == "whitefloral" ~ "floral",
+                                   product_color == "purple" ~ "purple",
+                                   product_color == "black & green" ~ "green",
+                                   product_color == "winered" ~ "red",
+                                   product_color == "white & green" ~ "green",
+                                   product_color == "blue & pink" ~ "multi",
+                                   product_color == "red & blue" ~ "multi",
+                                   product_color == "khaki" ~ "khaki",
+                                   product_color == "pink" ~ "pink",
+                                   product_color == "armygreen" ~ "green",
+                                   product_color == "red" ~ "red",
+                                   product_color == "orange" ~ "orange",
+                                   product_color == "lightblue" ~ "blue",
+                                   product_color == "grey" ~ "grey",
+                                   product_color == "beige" ~ "beige",
+                                   product_color == "blue" ~ "blue",
+                                   product_color == "navyblue" ~ "blue",
+                                   product_color == "yellow" ~ "yellow",
+                                   product_color == "leopardprint" ~ "leopard",
+                                   product_color == "green" ~ "green",
+                                           TRUE ~ "unknown"),
+         product_color = as.factor(product_colors))
+```
+
+#8e. Adding color
+
+```{r}
+
+colour_keywords <- c(
+  "silver", "brown", "offwhite", "violet", "rosegold", "gold", "floral", "purple",
+  "multi", "khaki", "pink", "unknown", "red", "orange", "grey", "beige", "blue",
+  "yellow", "black", "leopard", "green", "white"
+)
+
+add_colour <- function(df, colour_keywords) {
+  # Combine relevant columns into a single text string for each row
+   combined_columns <- paste(df$title_orig, df$tags, sep = " ")
+  
+  # Create an empty Material column
+  df$colour <- NA
+  
+  # Loop through each keyword and check if it exists in the combined columns
+  for (keyword in colour_keywords) {
+    matching_indices <- grep(keyword, combined_columns, ignore.case = TRUE)
+    df$colour[matching_indices] <- keyword
+  }
+  
+  # Replace NA values with "unknown"
+  df$colour[is.na(df$colour) | df$colour  == ""] <- "unknown"
+  
+  return(df)
+}
+
+```
+
+```{r}
+# Apply the function to your dataset
+df <- add_product_type(df, product_type_keywords)
+df <- add_style(df, style_keywords)
+df <- add_pattern(df, pattern_keywords)
+df <- add_material(df, material_keywords)
+df <- add_colour(df, colour_keywords)
+
+
+sum(is.na(df))
+```
+
+```{r}
+# Identify unique color values
+unique_colors <- df %>%
+  distinct(product_color) %>%
+  arrange(product_color)
+
+# Print the unique color values
+print(unique_colors)
+```
+
+#8f. Add category from #Change all this based on categories classification on the website
+
+```{r}
+
+library(dplyr)
+
+# Define a function to extract product category
+extract_category <- function(title) {
+  title <- tolower(title)
+  if (grepl('activewear', title) || grepl('workout', title) || grepl('gym', title)) {
+    return('Activewear')
+  } else if (grepl('bodysuit', title)) {
+    return('Bodysuits')
+  } else if (grepl('coat', title) || grepl('jacket', title)) {
+    return('Coats and Jackets')
+  } else if (grepl('dress', title)) {
+    return('Dresses')
+  } else if (grepl('ethnic', title) || grepl('traditional', title) || grepl('cultural', title)) {
+    return('Ethnic Fashion')
+  } else if (grepl('jeans', title)) {
+    return('Jeans')
+  } else if (grepl('jumpsuit', title) || grepl('romper', title)) {
+    return('Jumpsuits and Rompers')
+  } else if (grepl('lingerie', title) || grepl('shapewear', title) || grepl('underwear', title)) {
+    return('Lingerie and Shapewear')
+  } else if (grepl('maternity', title) || grepl('pregnant', title)) {
+    return('Maternity')
+  } else if (grepl('pants', title) || grepl('trousers', title)) {
+    return('Pants')
+  } else if (grepl('petite', title)) {
+    return('Petites')
+  } else if (grepl('plus size', title) || grepl('plus-size', title) || grepl('curvy', title)) {
+    return('Plus Size')
+  } else if (grepl('shorts', title)) {
+    return('Shorts')
+  } else {
+    return('Other')
+  }
+}
+
+# Apply the function to the title_orig column and create a new category column
+df <- df %>%
+  mutate(category = sapply(title_orig, extract_category))
+
+# Display the first few rows with the new category column
+head(df)
+```
+
+#9. Now let us correct the product_variation_size_id column where the size listed have 107 variations.
+
+```{r}
+library(dplyr)
+
+# Define key sizes and their variations
+size_mappings <- list(
+  "XXS" = c("XXS", "SIZE XXS"),
+  "XS" = c("XS", "SIZE XS"),
+  "S" = c("S", "SIZE S"),
+  "M" = c("M", "SIZE M"),
+  "L" = c("L", "SIZEL"),
+  "XL" = c("XL"),
+  "XXL" = c("XXL", "2XL"),
+  "3XL" = c("3XL", "SIZE 3XL"),
+  "4XL" = c("4XL", "SIZE 4XL"),
+  "5XL" = c("5XL", "SIZE 5XL"),
+  "XXS" = c("SIZE XXS"),
+  "XXXXL" = c("4XL", "SIZE 4XL"),
+  "XXXXXL" = c("5XL", "SIZE 5XL"),
+  "One Size" = c("One Size"),
+  "2" = c("2"),
+  "4" = c("4"),
+  "6" = c("6"),
+  "8" = c("8"),
+  "10" = c("10"),
+  "12" = c("12"),
+  "14" = c("14"),
+  "16" = c("16"),
+  "18" = c("18"),
+  "20" = c("20")
+)
+
+# Function to categorize sizes
+categorize_size <- function(size) {
+  for (key in names(size_mappings)) {
+    if (size %in% size_mappings[[key]]) {
+      return(key)
+    }
+  }
+  return("Other")
+}
+
+# Apply the function to the 'product_variation_size_id' column
+df <- df %>%
+  mutate(categorized_size = sapply(product_variation_size_id, categorize_size))
+
+# Group by the new 'categorized_size' column and count the occurrences
+size_counts <- df %>%
+  group_by(categorized_size) %>%
+  summarise(Count = n()) %>%
+  arrange(desc(Count))
+
+# Print the result
+print(size_counts)
+
+```
+
+#10. Examining Rating . We will retain all the rating data till further analyses
+
+```{r}
+
+rate <- df %>% dplyr::select(rating, rating_count, rating_five_count, rating_four_count, rating_three_count,
+                                 rating_two_count, rating_one_count)
+
+```
+
+#11. As we created new categorical, pattern columns, we will adding some numerical columns to better understand price and their implications on units sold. #We have two columns retain_price and price in the dataset. Price is the amount at which the time is sold and retail_price is the market price. Understanding this helps if significant drop in price helps in higher units getting sold
+
+```{r}
+df <- df %>% 
+  mutate(price_drop = retail_price - price) %>% 
+  relocate(price_drop, .after = retail_price)
+```
+
+```{r}
+#Basic statistics of price_drop
+summary(df$price_drop)
+```
+
+#12. Converting the price drop is discount %
+
+```{r}
+
+df <- df %>% 
+  mutate(discount_per = round(price_drop/retail_price*100), 2) %>% 
+  relocate(discount_per, .after = price_drop)
+```
+
+```{r}
+summary(df$discount_per)
+```
+
+#13. To analyze our cluster groupings in the end let us bucketize the price
+
+```{r}
+
+df <- df %>% 
+  mutate(price_class = case_when(price < 10 ~ "EUR<10",
+                                 price > 10 & price < 20 ~ "EUR10-20",
+                                 price > 20 & price < 30 ~ "EUR20-30",
+                                 price > 30 & price < 40 ~ "EUR30-40",
+                                 TRUE ~ "EUR40-50"),
+         price_class = as.factor(price_class)) %>% 
+  relocate(price_class, .after = price)
+
+levels(df$price_class)
+```
+
+```{r}
+skim_without_charts(df)
+```
+
+```{r}
+#Impute missing value by mean
+df <- df %>%
+  mutate_if(is.numeric, ~ if_else(is.na(.), mean(., na.rm = TRUE), .))
+```
+
+#17. Let us visualize the relationship between units sold and other attributes. To begin with
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Select and mutate the data
+df1 <- df %>% 
+  dplyr::select(discount_per, units_sold) %>% 
+  mutate(class = case_when(
+    discount_per < 0 ~ "0%",
+    discount_per > 0 & discount_per < 25 ~ "0-25%",
+    discount_per >= 25 & discount_per < 50 ~ "25-50%",
+    discount_per >= 50 & discount_per < 75 ~ "50-75%",
+    TRUE ~ "75-100%"
+  ),
+  class = factor(class, levels = c("0%", "0-25%", "25-50%", "50-75%", "75-100%"))) %>% 
+  group_by(class) %>% 
+  summarise(total = sum(units_sold))
+
+# Create the plot
+p2 <- ggplot(df1, aes(x = class, y = total, fill = class)) +
+  geom_bar(stat = "identity", colour = "black") +
+  geom_label(aes(label = prettyNum(total, big.mark = ",")), vjust = -1) +
+  labs(
+    x = "Discounts",
+    y = "Total Sold (Count)",
+    title = "Higher discounts -> more units sold?"
+  ) +
+  scale_y_continuous(labels = function(x) paste0((x/1000000), " Mil"), limits = c(0, 3000000)) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold"),
+    axis.title.y = element_text(margin = ggplot2::margin(0, 10, 0, 0)),
+    axis.title.x = element_text(margin = ggplot2::margin(10, 0, 0, 0))
+  )
+
+p2
+
+```
+
+From the above graph we see that higher the discounts, more number of units are sold. We also observe that there are around 2M items sold at 0%. These could be items which are lower in price or have good rating. Further double clicking on these we find that most of the items are \<EUR 10 and are in black color.
+
+```{r}
+
+library(dplyr)
+library(readr)
+
+# Filter the items with 0% discount
+zero_discount_items <- df %>%
+  filter(discount_per == 0)
+
+# Summarize the counts of color, pattern, price_class, and category
+zero_discount_summary <- zero_discount_items %>%
+  group_by(product_color,colour, pattern,style, price_class, category) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+# Print the summary
+print(zero_discount_summary)
+```
+
+```{r}
+library(dplyr)
+library(readr)
+
+
+# Filter the items with 0% discount
+zero_discount_items <- df %>%
+  filter(discount_per == 0)
+
+# Find the most common color, pattern, price_class, and category
+most_common_summary <- zero_discount_items %>%
+  summarise(
+    most_common_color = names(which.max(table(product_color))),
+     most_common_style = names(which.max(table(style))),
+    most_common_pattern = names(which.max(table(pattern))),
+    most_common_price_class = names(which.max(table(price_class))),
+    most_common_category = names(which.max(table(category)))
+  )
+
+# Print the most common attributes
+print(most_common_summary)
+
+```
+
+18. Now let us analyze units sold at each attribute level - Color, Size, Pattern, Material, Product type and Style to understand and identify the top preferred attributes
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(forcats)
+library(knitr)
+library(kableExtra)
+
+# Define the function
+analyze_and_plot <- function(df, categorical_var, plot_color) {
+  # Summarize data
+  summary_df <- df %>%
+    group_by(.data[[categorical_var]]) %>%
+    summarise(total = sum(units_sold)) %>%
+    ungroup()
+  
+  # Plot
+  p <- ggplot(summary_df, aes(y = fct_reorder(.data[[categorical_var]], total), x = total, group = 1)) +
+    geom_point(size = 3, color = plot_color) +
+    geom_line(size = 1, color = plot_color) +
+    labs(x = "Total Sold",
+         y = "Category",
+         title = paste("Best-Selling", gsub("_", " ", categorical_var))) +
+    theme(plot.title = element_text(size = 17)) +
+    scale_x_continuous(labels = function(x) (prettyNum(x, big.mark = ",")))
+  
+  print(p)
+  
+  # Process and display the top 5 best-selling categories
+  top_5_df <- summary_df %>%
+    arrange(desc(total)) %>%
+    mutate(grand_total = sum(total),
+           Proportion_percent = round(total / grand_total * 100)) %>%
+    slice(1:5)
+  
+  top_5_df %>%
+    kbl() %>%
+    kable_classic() %>%
+    print()
+}
+
+# Example usage for different categorical variables with specified colors
+analyze_and_plot(df, "product_color", "blue")
+analyze_and_plot(df, "categorized_size", "red")
+analyze_and_plot(df, "pattern", "green")
+analyze_and_plot(df, "material", "blue")
+analyze_and_plot(df, "product_type", "orange")
+analyze_and_plot(df, "style", "magenta")
+
+```
+
+From the above graphs and tables we see that
+
+18a. Black, white, grey and purple are the top preferred colors of summer.
+
+18b. XS,S and M are the most popular sizes sold
+
+18c. Floral, printed, strupe and polka dot are the most popular patterns
+
+18d. Cotton,Chiffon, elastic, stretch and polyester are the most popular materials
+
+18e. Shorts, slim, t-shirt, tanks, sleeveless and swim are the most preferred product types
+
+18f. Summer, beach, casual, yoga and autumn are top most prefered style
+
+19\. Now let us understand the relationship between the rating counts for each of the attributes
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+# Define the function
+plot_rating_vs_category <- function(df, rating_var, category_var) {
+  p <- ggplot(df, aes_string(x = category_var, y = rating_var, fill = category_var)) +
+    geom_boxplot() +
+    labs(
+      x = gsub("_", " ", category_var),
+      y = "Rating Count",
+      title = paste("Rating Count vs", gsub("_", " ", category_var))
+    ) +
+    theme(
+      plot.title = element_text(vjust = 2, size = 16, face = "bold"),  # Make the title bold and slightly larger
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+      axis.text.y = element_text(size = 10),
+      axis.title = element_text(size = 12, face = "bold"),  # Make axis titles bold
+      legend.position = "none",  # Remove the legend
+      panel.background = element_rect(fill = "white", colour = "black"),  # Set the panel background to white with a black border
+      panel.grid.major = element_line(colour = "grey90"),  # Set major grid lines to a light grey
+      panel.grid.minor = element_line(colour = "grey95"),  # Set minor grid lines to a very light grey
+      plot.background = element_rect(fill = "white", colour = NA)  # Set the plot background to white
+    )
+  
+  print(p)
+}
+
+# List of categorical variables to plot
+categorical_vars <- c("product_colors", "categorized_size", "pattern", "material", "product_type", "style")
+
+# Loop through each categorical variable and create the plot
+for (var in categorical_vars) {
+  plot_rating_vs_category(df, "rating_count", var)
+}
+
+```
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+# Define the function
+plot_rating_vs_category <- function(df, rating_var, category_var) {
+  p <- ggplot(df, aes_string(x = category_var, y = rating_var, fill = category_var)) +
+    geom_boxplot() +
+    labs(
+      x = gsub("_", " ", category_var),
+      y = gsub("_", " ", rating_var),
+      title = paste(gsub("_", " ", rating_var), "vs", gsub("_", " ", category_var))
+    ) +
+    theme(
+      plot.title = element_text(vjust = 2, size = 16, face = "bold"),  # Make the title bold and slightly larger
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+      axis.text.y = element_text(size = 10),
+      axis.title = element_text(size = 12, face = "bold"),  # Make axis titles bold
+      legend.position = "none",  # Remove the legend
+      panel.background = element_rect(fill = "white", colour = "black"),  # Set the panel background to white with a black border
+      panel.grid.major = element_line(colour = "grey90"),  # Set major grid lines to a light grey
+      panel.grid.minor = element_line(colour = "grey95"),  # Set minor grid lines to a very light grey
+      plot.background = element_rect(fill = "white", colour = NA)  # Set the plot background to white
+    )
+  
+  print(p)
+}
+
+
+# List of rating variables and categorical variables to plot
+rating_vars <- c("rating_one_count", "rating_two_count", "rating_three_count", "rating_four_count", "rating_five_count")
+categorical_vars <- c("product_color", "categorized_size", "pattern", "material", "product_type", "style")
+
+# Loop through each rating variable and each categorical variable to create the plots
+for (rating_var in rating_vars) {
+  for (category_var in categorical_vars) {
+    plot_rating_vs_category(df, rating_var, category_var)
+  }
+}
+
+```
+
+20. Distribution of rating counts for each of the attribute
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(scales)
+
+# Define the function to create the stacked bar plot
+create_stacked_bar_plot <- function(df, category_var) {
+  # Reshape the data to long format for easier plotting with ggplot2
+  df_long <- df %>%
+    dplyr :: select(all_of(category_var), rating_one_count, rating_two_count, rating_three_count, rating_four_count, rating_five_count) %>%
+    pivot_longer(cols = starts_with("rating_"), names_to = "rating_type", values_to = "count")
+  
+  # Calculate the total ratings for each category
+  df_totals <- df_long %>%
+    group_by(across(all_of(category_var))) %>%
+    summarise(total_count = sum(count, na.rm = TRUE)) %>%
+    arrange(desc(total_count))
+  
+  # Order the category variable by total ratings
+  df_long[[category_var]] <- factor(df_long[[category_var]], levels = df_totals[[category_var]])
+  
+  # Create the stacked bar plot
+  p <- ggplot(df_long, aes_string(x = category_var, y = "count", fill = "rating_type")) +
+    geom_bar(stat = "identity", position = "stack") +
+    labs(
+      x = gsub("_", " ", category_var),
+      y = "Rating Count",
+      title = paste("Distribution of Rating Counts for Each", gsub("_", " ", category_var))
+    ) +
+    theme(
+      plot.title = element_text(vjust = 2, size = 16, face = "bold"),  # Make the title bold and slightly larger
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+      axis.text.y = element_text(size = 10),
+      axis.title = element_text(size = 12, face = "bold"),  # Make axis titles bold
+      legend.title = element_text(size = 12, face = "bold"),  # Make legend title bold
+      legend.text = element_text(size = 10),
+      panel.background = element_rect(fill = "white", colour = "black"),  # Set the panel background to white with a black border
+      panel.grid.major = element_line(colour = "grey90"),  # Set major grid lines to a light grey
+      panel.grid.minor = element_line(colour = "grey95"),  # Set minor grid lines to a very light grey
+      plot.background = element_rect(fill = "white", colour = NA)  # Set the plot background to white
+    ) +
+    scale_y_continuous(labels = scales::comma)  # Use comma as thousand separator
+
+  # Print the plot
+  print(p)
+}
+
+
+
+# List of categorical variables to plot
+categorical_vars <- c("product_colors", "categorized_size", "pattern", "material", "product_type", "style")
+
+# Loop through each categorical variable and create the plot
+for (var in categorical_vars) {
+  create_stacked_bar_plot(df, var)
+}
+
+```
+
+21\. By plotting a scatter plot between rating and units sold, we can identify the impact of rating on units sold.
+
+```{r}
+
+
+# Create the scatter plot
+p5 <- ggplot(df, aes(x = rating, y = units_sold, colour = price_class)) +
+  geom_point(size = 3, alpha = 0.4) +
+  labs(
+    x = "Product Rating (1 - 5)",
+    y = "Units Sold (Count)",
+    title = " Rating Vs Units sold for different price classes"
+  ) +
+  theme(
+    plot.title = element_text(vjust = 2, size = 16, face = "bold"),  # Make the title bold and slightly larger
+    strip.text = element_text(size = 14, face = "bold"),  # Make facet labels bold
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 12, face = "bold"),  # Make axis titles bold
+    legend.title = element_text(size = 12, face = "bold"),  # Make legend title bold
+    legend.text = element_text(size = 10),
+    panel.background = element_rect(fill = "white", colour = "black"),  # Set the panel background to white with a black border
+    panel.grid.major = element_line(colour = "grey90"),  # Set major grid lines to a light grey
+    panel.grid.minor = element_line(colour = "grey95"),  # Set minor grid lines to a very light grey
+    plot.background = element_rect(fill = "white", colour = NA)  # Set the plot background to white
+  ) +
+  facet_wrap(~price_class) +
+  scale_y_continuous(labels = function(x) prettyNum(x, big.mark = ",")) +
+  scale_x_continuous(breaks = seq(1, 5, by = 0.5))  # Ensure x-axis has consistent breaks
+
+
+# Print the plot
+print(p5)
+```
+
+22\. By plotting a scatter plot between merchant rating and units sold, we can identify the impact of rating on units sold.
+
+```{r}
+
+# Create the scatter plot
+p5 <- ggplot(df, aes(x = merchant_rating, y = units_sold, colour = price_class)) +
+  geom_point(size = 3, alpha = 0.4) +
+  labs(
+    x = "Merchant Rating (1 - 5)",
+    y = "Units Sold (Count)",
+    title = " Merchant Rating Vs Units sold for different price classes"
+  ) +
+  theme(
+    plot.title = element_text(vjust = 2, size = 16, face = "bold"),  # Make the title bold and slightly larger
+    strip.text = element_text(size = 14, face = "bold"),  # Make facet labels bold
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 12, face = "bold"),  # Make axis titles bold
+    legend.title = element_text(size = 12, face = "bold"),  # Make legend title bold
+    legend.text = element_text(size = 10),
+    panel.background = element_rect(fill = "white", colour = "black"),  # Set the panel background to white with a black border
+    panel.grid.major = element_line(colour = "grey90"),  # Set major grid lines to a light grey
+    panel.grid.minor = element_line(colour = "grey95"),  # Set minor grid lines to a very light grey
+    plot.background = element_rect(fill = "white", colour = NA)  # Set the plot background to white
+  ) +
+  facet_wrap(~price_class) +
+  scale_y_continuous(labels = function(x) prettyNum(x, big.mark = ",")) +
+  scale_x_continuous(breaks = seq(1, 5, by = 0.5))  # Ensure x-axis has consistent breaks
+
+
+# Print the plot
+print(p5)
+```
+
+For all price_classes EUR \<10 and EUR 10-20 we see that best merchant rating for items sold is between 3 to 5.
+
+23\. Tags are one of the key components of ensuring an item getting surfaced better
+
+```{r}
+# df 
+df5 <- df %>% 
+  dplyr::select(merchant_name, price_class, price, units_sold, tags) %>% 
+  mutate(tags = as.character(tags))
+
+seller_tags <- df5 %>%
+  unnest_tokens(input = tags, output = word, token = "words") %>%  # Tokenize tags
+  group_by(merchant_name) %>%
+  summarise(tags_count = n()) %>%
+  arrange(desc(tags_count))
+
+# Join tables
+df5.2 <- df5 %>%
+  left_join(seller_tags, by = "merchant_name")
+
+# Plot
+ggplot(df5.2, aes(x = tags_count, y = units_sold)) +
+  geom_point(size = 3, colour = "blue", alpha = 0.6) +
+  theme(
+    legend.position = "right",
+    plot.title = element_text(face = "bold", size = 14, vjust = 2),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 12, face = "bold")
+  ) +
+  labs(
+    title = "Number of Tags vs Units Sold",
+    x = "Number of Tags",
+    y = "Units Sold"
+  ) +
+  facet_wrap(~price_class) +
+  scale_y_continuous(labels = function(x) prettyNum(x, big.mark = ",")) +
+  scale_x_continuous(limits = c(0, 350), breaks = seq(0, 350, 50))  # Adjusted limits for better visualization
+```
+
+For low priced items, tags \<100 have chances of higher sale. But particularly there is no significant relationship between number of tags and no,of units sold. However, to understand the text in tag which results in high sale
+
+24. Text mining - Next we will mine the tags to identify any specific pattern in the type of tags for items and their sell through rate (conversion/items sold)
+
+```{r}
+
+# set up df
+df5.6 <- df5 %>% 
+  unnest_tokens(input = tags, output = word) %>% 
+  anti_join(stop_words, by = "word") %>%        # remove meaningless words such as "a", "and", "the"
+  filter(str_detect(word, "[:alpha:]")) %>%     # only include alphabetical word
+  distinct()                                    # to remove duplicate word by a merchant 
+
+# slice the top 50 best words for units_sold
+df5.6.2 <- df5.6 %>% 
+  group_by(word) %>% 
+  summarise(total_sold = sum(units_sold)) %>% 
+  arrange(desc(total_sold)) %>% 
+  mutate(id = paste0("id", row_number())) %>% 
+  slice(c(1:50))
+
+# plot
+ggplot(df5.6.2, aes(y = fct_reorder(word, total_sold), x = total_sold, group = 1)) +
+  geom_point(size = 4, color = "green") +
+  geom_line(size = 1, color = "green") +
+  labs(x = "Total Sold ",
+       y = "Texts",
+       title = "The Top 50 Best Performing Texts that Used As Tags") +
+  theme(plot.title = element_text(size = 17)) +
+  scale_x_continuous(labels = function(x)(prettyNum(x, big.mark = ",")))
+
+```
+
+```{r}
+#Top best selling texts are 
+d1 <- df5.6 %>% 
+  group_by(word) %>% 
+  summarise(total_sold = sum(units_sold)) %>% 
+  mutate(grand_total = sum(total_sold),
+         proportion.percent = paste0(round(total_sold/grand_total * 100, 2), "%")) %>% 
+  arrange(desc(total_sold)) %>% 
+  slice(1:10)
+
+d1 %>% 
+  kbl(align = "c") %>% 
+ kable_classic_2(full_width = F)
+```
+
+```{r}
+#The top 10 worse selling texts are 
+d2 <- df5.6 %>% 
+  group_by(word) %>% 
+  summarise(total_sold = sum(units_sold)) %>% 
+  mutate(grand_total = sum(total_sold),
+         proportion.percent = paste0(round(total_sold/grand_total * 100, 6), "%")) %>% 
+  arrange(total_sold) %>% 
+  slice(1:10)
+
+d2 %>% 
+  kbl(align = "c") %>% 
+ kable_classic_2(full_width = F)
+```
+
+```{r}
+# Split the tags into individual rows
+tags_data <- df %>%
+  separate_rows(tags, sep = ",") %>%
+  filter(!is.na(tags) & tags != "")
+
+# Count the frequency of each tag
+tag_frequency <- tags_data %>%
+  group_by(tags) %>%
+  summarize(frequency = n()) %>%
+  arrange(desc(frequency))
+
+# Print the tag frequencies
+print(tag_frequency)
+```
+
+```{r}
+#Text mining
+top_words <- df5.6 %>% 
+  count(word, name = "users_count") %>% 
+  arrange(desc(users_count)) %>% 
+  filter(users_count > 100)      
+
+top_words  
+```
+
+```{r}
+#Applying pairwise correlation between words across all products
+word_cor <- df5.6 %>% 
+  semi_join(top_words, by = "word") %>%     # df5.6 has all words, semi join to get top 100 words
+  pairwise_cor(item = word, feature = merchant_name) %>% 
+  filter(correlation >= 0.2)       # Don't include correlation that is too small.
+
+head(word_cor)
+```
+
+25. Next we will perform Hierarchical and K-means cluster analysis
+
+```{r}
+#Hierarchial Cluster Analysis
+
+# # Define categorical columns
+categorical_columns <- c( "product_colors", "product_type", "style", "pattern", "material","tags")
+# Filter out "unknown" values from categorical columns
+df_f <- df %>%
+  filter(across(all_of(categorical_columns), ~ . != "unknown"))
+
+# Select relevant numerical features for clustering
+numerical_features <- df_f %>%
+  dplyr::select(price, retail_price, units_sold, rating) %>%
+  scale()  # Scale numerical features
+
+# # Select relevant categorical features for clustering
+categorical_features <- df_f %>%
+  dplyr::select(price_class, product_type, style, pattern, material, product_color, category, categorized_size, uses_ad_boosts) %>%
+  mutate(across(everything(), as.factor)) %>%
+  mutate(across(everything(), ~ as.integer(as.factor(.))))  # Convert factors to integers
+
+# Combine processed numerical and categorical data
+data_processed <- cbind(numerical_features, categorical_features)
+
+# Compute distance matrix
+distance_matrix <- dist(data_processed, method = "euclidean")
+
+# Perform hierarchical clustering
+hc <- hclust(distance_matrix, method = "ward.D2")
+
+# Add the cluster labels to the original data
+df_f$cluster_hc <- cutree(hc, k = 5)
+
+# Visualize the dendrogram
+fviz_dend(hc, k = 4, rect = TRUE, show_labels = FALSE)
+
+# Summarize numerical features for each cluster
+numerical_summary_hc <- df_f %>%
+  group_by(cluster_hc) %>%
+  summarise(across(c(price, retail_price, price_drop, discount_per, units_sold, rating, uses_ad_boosts), mean, na.rm = TRUE))
+
+# Summarize categorical features for each cluster
+categorical_summary_hc <- df_f %>%
+  group_by(cluster_hc) %>%
+  summarise(across(c(price_class, product_colors, product_type, style, pattern, material, category, categorized_size), ~names(sort(table(.), decreasing = TRUE))[1]))
+
+# Print the summaries
+print("Numerical Cluster Summary (Hierarchical Clustering)")
+print(numerical_summary_hc)
+
+print("Categorical Cluster Summary (Hierarchical Clustering)")
+print(categorical_summary_hc)
+```
+
+```{r}
+#K-Means
+# Load necessary libraries
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(cluster)
+library(factoextra)
+
+ 
+# Filter out "unknown" values from categorical columns
+df_f <- df %>%
+  filter(across(all_of(categorical_columns), ~ . != "unknown"))
+
+# Select relevant numerical features for clustering
+numerical_features <- df_f %>%
+  dplyr::select(price, retail_price, units_sold, rating, rating_count) %>%
+  scale()  # Scale numerical features
+
+# Combine processed numerical and categorical data
+data_processed <- cbind(numerical_features)
+
+# Determine the optimal number of clusters using the Elbow method
+set.seed(123)
+fviz_nbclust(data_processed, kmeans, method = "wss")
+
+# Perform K-means clustering
+set.seed(123)
+kmeans_result <- kmeans(data_processed, centers = 3, nstart = 25)
+
+# Add the cluster labels to the original data
+df_f$cluster_kmeans <- kmeans_result$cluster
+
+# Visualize the clusters using the first two principal components
+pca_result <- prcomp(data_processed, scale. = TRUE)
+pca_data <- data.frame(pca_result$x[, 1:2], cluster = as.factor(df_f$cluster_kmeans))
+
+ggplot(pca_data, aes(x = PC1, y = PC2, color = cluster)) +
+  geom_point(alpha = 0.7, size = 3) +
+  theme_minimal() +
+  labs(title = "K-means Clustering",
+       x = "Principal Component 1",
+       y = "Principal Component 2")
+
+# Additional visualization of clusters using fviz_cluster
+fviz_cluster(kmeans_result, data = data_processed, geom = "point", ellipse.type = "norm") +
+  theme_minimal() +
+  labs(title = "K-means Clustering", x = "PC1", y = "PC2")
+
+# Summarize numerical features for each cluster
+numerical_summary_kmeans <- df_f %>%
+  group_by(cluster_kmeans) %>%
+  summarise(across(c(price, retail_price, units_sold, rating, uses_ad_boosts), mean, na.rm = TRUE))
+
+# Summarize categorical features for each cluster
+categorical_summary_kmeans <- df_f %>%
+  group_by(cluster_kmeans) %>%
+  summarise(across(c(price_class, product_type, style, pattern, material, product_color, category, categorized_size), ~ names(sort(table(.), decreasing = TRUE))[1]))
+
+# Print the summaries
+print("Numerical Cluster Summary (K-means Clustering)")
+print(numerical_summary_kmeans)
+
+print("Categorical Cluster Summary (K-means Clustering)")
+print(categorical_summary_kmeans)
+
+```
+
+```{r}
+# Load necessary library
+library(dplyr)
+
+# Define the function
+calculate_and_print_percentages <- function(data, column1, column2) {
+  # Create a contingency table
+  contingency_table <- table(data[[column1]], data[[column2]])
+  
+  # Calculate the percentages
+  percentages <- round(prop.table(contingency_table, 1), 2) * 100
+  
+  # Print the contingency table and percentages
+  print(contingency_table)
+  print(percentages)
+}
+
+# Example usage
+calculate_and_print_percentages(df_f, "cluster_kmeans", "price_class")
+calculate_and_print_percentages(df_f, "cluster_kmeans", "categorized_size")
+calculate_and_print_percentages(df_f, "cluster_kmeans", "product_colors")
+calculate_and_print_percentages(df_f, "cluster_kmeans", "product_type")
+calculate_and_print_percentages(df_f, "cluster_kmeans", "style")
+calculate_and_print_percentages(df_f, "cluster_kmeans", "pattern")
+calculate_and_print_percentages(df_f, "cluster_kmeans", "material")
+
+```
+
+```{r}
+# Generate heatmaps for specified columns (36:42)
+library(RColorBrewer)
+lapply(31:38, function(x) {
+  dat <- round(prop.table(table(df_f$cluster_kmeans, df_f[[x]]), 1), 2) * 100
+  dat <- data.frame(dat)
+  ggplot(data = dat, aes(x = Var2, y = Var1, fill = Freq)) +
+    geom_tile() +
+    geom_text(aes(label = Freq), size = 6) +
+    xlab(label = '') +
+    ylab(label = '') +
+    scale_fill_gradientn(colors = brewer.pal(n = 9, name = 'Greens')) +
+    ggtitle(paste("Heatmap of Cluster vs Column", x))
+})
+```
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+1 + 1
+```
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+2 * 2
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
